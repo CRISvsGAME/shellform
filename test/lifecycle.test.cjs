@@ -15,7 +15,7 @@ const providerSource = readFileSync(providerFilename, "utf8");
 const requestFilename = join(__dirname, "../out/format-request.js");
 const requestSource = readFileSync(requestFilename, "utf8");
 
-function startRequest(t, cancelled = false) {
+function startRequest(t, cancelled = false, previous) {
     const child = new EventEmitter();
     const signals = [];
 
@@ -78,11 +78,11 @@ function startRequest(t, cancelled = false) {
         cancellation.emit("cancel");
     }
 
-    let shellform;
+    let shellform = previous?.shellform;
 
-    const edits = [];
-    const errors = [];
-    const spawns = [];
+    const edits = previous?.edits ?? [];
+    const errors = previous?.errors ?? [];
+    const spawns = previous?.spawns ?? [];
 
     const fakeTextEdit = {
         replace(range, newText) {
@@ -123,12 +123,16 @@ function startRequest(t, cancelled = false) {
     const providerExports = {};
     const requestExports = {};
 
-    const fakeSpawn = {
+    const fakeSpawn = previous?.fakeSpawn ?? {
         spawn() {
-            spawns.push(child);
-            return child;
+            const process = fakeSpawn.child;
+
+            spawns.push(process);
+            return process;
         },
     };
+
+    fakeSpawn.child = child;
 
     function fakeRequire(name) {
         if (name === "vscode") {
@@ -176,13 +180,15 @@ function startRequest(t, cancelled = false) {
         console: fakeConsole,
     };
 
-    runInNewContext(requestSource, requestContext, { filename: requestFilename });
-    runInNewContext(providerSource, providerContext, { filename: providerFilename });
-    runInNewContext(extensionSource, extensionContext, { filename: extensionFilename });
+    if (previous === undefined) {
+        runInNewContext(requestSource, requestContext, { filename: requestFilename });
+        runInNewContext(providerSource, providerContext, { filename: providerFilename });
+        runInNewContext(extensionSource, extensionContext, { filename: extensionFilename });
 
-    extensionExports.activate({ subscriptions: [] });
+        extensionExports.activate({ subscriptions: [] });
+    }
 
-    const document = {
+    const document = previous?.document ?? {
         version: 1,
         getText: () => "input text",
         positionAt: (offset) => offset,
@@ -197,7 +203,20 @@ function startRequest(t, cancelled = false) {
         token,
     );
 
-    return { child, result, errors, edits, signals, spawns, cancellation, document, token, cancel };
+    return {
+        child,
+        result,
+        errors,
+        edits,
+        signals,
+        spawns,
+        cancellation,
+        document,
+        token,
+        cancel,
+        shellform,
+        fakeSpawn,
+    };
 }
 
 for (const origin of ["stdin", "stdout", "stderr", "process"]) {
@@ -395,6 +414,60 @@ test("cancelled token rejects output before the cancellation event arrives", { t
     assert.equal(errors.length, 0);
     assert.equal(edits.length, 0);
     assert.equal(cancellation.listenerCount("cancel"), 0);
+});
+
+test("overlapping requests reject cancelled output when processes close out of order", { timeout: 1000 }, async (t) => {
+    const first = startRequest(t);
+    first.document.version += 1;
+
+    const second = startRequest(t, false, first);
+    second.document.version += 1;
+
+    const third = startRequest(t, false, second);
+
+    first.cancel();
+    second.cancel();
+
+    assert.equal(first.spawns.length, 3);
+    assert.equal(first.shellform, second.shellform);
+    assert.equal(second.shellform, third.shellform);
+    assert.equal(first.token.isCancellationRequested, true);
+    assert.equal(second.token.isCancellationRequested, true);
+    assert.equal(third.token.isCancellationRequested, false);
+
+    const secondEdits = await second.result;
+
+    second.child.stdout.write("second output");
+    second.child.emit("close", 0);
+
+    assert.equal(secondEdits.length, 0);
+    assert.equal(second.child.stdin.destroyed, true);
+    assert.deepEqual(second.signals, ["SIGTERM"]);
+
+    third.child.stdout.write("third output");
+    third.child.emit("close", 0);
+
+    const thirdEdits = await third.result;
+
+    assert.equal(thirdEdits.length, 1);
+    assert.equal(thirdEdits[0].newText, "third output");
+    assert.deepEqual(third.signals, []);
+
+    const firstEdits = await first.result;
+
+    first.child.stdout.write("first output");
+    first.child.emit("close", 0);
+
+    assert.equal(firstEdits.length, 0);
+    assert.equal(first.child.stdin.destroyed, true);
+    assert.deepEqual(first.signals, ["SIGTERM"]);
+
+    assert.equal(first.errors.length, 0);
+    assert.equal(first.edits.length, 1);
+    assert.equal(first.edits[0].newText, "third output");
+    assert.equal(first.cancellation.listenerCount("cancel"), 0);
+    assert.equal(second.cancellation.listenerCount("cancel"), 0);
+    assert.equal(third.cancellation.listenerCount("cancel"), 0);
 });
 
 for (const outcome of ["succeeded", "unchanged", "stale", "error", "failed"]) {
