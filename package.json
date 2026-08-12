@@ -1,0 +1,30 @@
+{
+    "name": "shellform",
+    "displayName": "Shellform",
+    "version": "0.0.1",
+    "publisher": "crisvsgame",
+    "description": "Format Bash and POSIX shell scripts using shfmt.",
+    "categories": [
+        "Formatters"
+    ],
+    "keywords": [
+        "shell",
+        "bash",
+        "sh",
+        "formatter",
+        "shfmt"
+    ],
+    "homepage": "https://github.com/CRISvsGAME/shellform#readme",
+    "bugs": {
+        "url": "https://github.com/CRISvsGAME/shellform/issues"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/CRISvsGAME/shellform.git"
+    },
+    "license": "MIT",
+    "author": "CRISvsGAME <cris@crisvsgame.com>",
+    "engines": {
+        "vscode": "^1.101.0"
+    }
+}
