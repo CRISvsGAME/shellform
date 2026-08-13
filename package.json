@@ -26,5 +26,14 @@
     "author": "CRISvsGAME <cris@crisvsgame.com>",
     "engines": {
         "vscode": "^1.101.0"
+    },
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsc --watch"
+    },
+    "devDependencies": {
+        "@types/node": "22.15.1",
+        "@types/vscode": "1.101.0",
+        "typescript": "^7.0.2"
     }
 }
