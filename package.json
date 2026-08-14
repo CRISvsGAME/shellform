@@ -24,6 +24,10 @@
     },
     "license": "MIT",
     "author": "CRISvsGAME <cris@crisvsgame.com>",
+    "main": "./out/extension.js",
+    "activationEvents": [
+        "onLanguage:shellscript"
+    ],
     "engines": {
         "vscode": "^1.101.0"
     },
