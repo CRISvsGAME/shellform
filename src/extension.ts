@@ -6,9 +6,13 @@ export function activate(context: vscode.ExtensionContext): void {
     const formatter = vscode.languages.registerDocumentFormattingEditProvider(
         { language: "shellscript" },
         {
-            provideDocumentFormattingEdits(document: vscode.TextDocument): vscode.TextEdit[] {
+            provideDocumentFormattingEdits(
+                document: vscode.TextDocument,
+                options: vscode.FormattingOptions,
+            ): vscode.TextEdit[] {
                 console.log("Shellform Formatter Invoked");
                 console.log(document.getText());
+                console.log({ insertSpaces: options.insertSpaces, tabSize: options.tabSize });
 
                 return [];
             },
