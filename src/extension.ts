@@ -12,7 +12,10 @@ export function activate(context: vscode.ExtensionContext): void {
             ): vscode.TextEdit[] {
                 console.log("Shellform Formatter Invoked");
                 console.log(document.getText());
-                console.log({ insertSpaces: options.insertSpaces, tabSize: options.tabSize });
+
+                const indent = options.insertSpaces ? options.tabSize : 0;
+
+                console.log({ insertSpaces: options.insertSpaces, tabSize: options.tabSize, indent });
 
                 return [];
             },
