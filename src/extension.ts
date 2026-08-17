@@ -14,6 +14,8 @@ export function activate(context: vscode.ExtensionContext): void {
                 const indent = options.insertSpaces ? options.tabSize : 0;
 
                 return new Promise((resolve) => {
+                    const version = document.version;
+                    const input = document.getText();
                     const process = spawn("shfmt", ["-i", indent.toString()]);
 
                     let stdout = "";
@@ -42,11 +44,16 @@ export function activate(context: vscode.ExtensionContext): void {
                             return;
                         }
 
+                        if (version !== document.version) {
+                            resolve([]);
+                            return;
+                        }
+
                         console.log(stdout);
                         resolve([]);
                     });
 
-                    process.stdin.end(document.getText());
+                    process.stdin.end(input);
                 });
             },
         },
