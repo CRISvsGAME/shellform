@@ -37,7 +37,7 @@ export function activate(context: vscode.ExtensionContext): void {
                         resolve([]);
                     });
 
-                    process.on("close", (code: number) => {
+                    process.on("close", (code) => {
                         if (code !== 0) {
                             console.error(stderr);
                             resolve([]);
@@ -49,8 +49,9 @@ export function activate(context: vscode.ExtensionContext): void {
                             return;
                         }
 
-                        console.log(stdout);
-                        resolve([]);
+                        const range = new vscode.Range(document.positionAt(0), document.positionAt(input.length));
+
+                        resolve([vscode.TextEdit.replace(range, stdout)]);
                     });
 
                     process.stdin.end(input);
