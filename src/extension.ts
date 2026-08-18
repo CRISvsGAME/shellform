@@ -1,4 +1,4 @@
-import { spawn } from "child_process";
+import { spawn } from "node:child_process";
 import * as vscode from "vscode";
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -32,6 +32,21 @@ export function activate(context: vscode.ExtensionContext): void {
                         stderr += data;
                     });
 
+                    process.stdin.on("error", (error) => {
+                        console.error(error);
+                        resolve([]);
+                    });
+
+                    process.stdout.on("error", (error) => {
+                        console.error(error);
+                        resolve([]);
+                    });
+
+                    process.stderr.on("error", (error) => {
+                        console.error(error);
+                        resolve([]);
+                    });
+
                     process.on("error", (error) => {
                         console.error(error);
                         resolve([]);
@@ -45,6 +60,11 @@ export function activate(context: vscode.ExtensionContext): void {
                         }
 
                         if (version !== document.version) {
+                            resolve([]);
+                            return;
+                        }
+
+                        if (input === stdout) {
                             resolve([]);
                             return;
                         }
