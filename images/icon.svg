@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img"
+    aria-labelledby="title desc">
+    <title id="title">Shellform - Terminal</title>
+    <desc id="desc">Format Bash and POSIX shell scripts using shfmt.</desc>
+    <rect width="512" height="512" rx="112" fill="#101C25" />
+    <rect x="57" y="75" width="398" height="362" rx="42" fill="none" stroke="#344550"
+        stroke-width="6" />
+    <path d="M60 143H452" stroke="#344550" stroke-width="6" />
+    <g fill="#71838D">
+        <circle cx="91" cy="110" r="8" />
+        <circle cx="121" cy="110" r="8" />
+        <circle cx="151" cy="110" r="8" />
+    </g>
+    <path d="m103 195 47 40-47 40" fill="none" stroke="#88F2C4" stroke-width="19"
+        stroke-linecap="round" stroke-linejoin="round" />
+    <g fill="#88F2C4">
+        <rect x="194" y="222" width="177" height="23" rx="11.5" />
+        <rect x="232" y="275" width="139" height="23" rx="11.5" />
+        <rect x="232" y="328" width="98" height="23" rx="11.5" />
+        <rect x="194" y="381" width="177" height="23" rx="11.5" />
+    </g>
+    <path d="M202 282V345" stroke="#425B60" stroke-width="5" stroke-linecap="round" />
+</svg>

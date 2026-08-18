@@ -4,7 +4,7 @@
         "outDir": "./out",
         "module": "commonjs",
         "target": "es2024",
-        "types": ["node", "vscode"],
+        "types": ["mocha", "node", "vscode"],
         "sourceMap": true,
         "noUncheckedIndexedAccess": true,
         "forceConsistentCasingInFileNames": true,
