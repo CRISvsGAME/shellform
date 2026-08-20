@@ -7,9 +7,9 @@
 Shellform is a lightweight Visual Studio Code extension for formatting shell
 scripts using [shfmt](https://github.com/mvdan/sh).
 
-**0.1.0 Alpha** is the first preview release. It provides whole-document
-formatting through VS Code, using the current editor buffer and the document's
-indentation options. Behaviour may change as the extension develops.
+**0.2.0** is the first regular release. It provides whole-document formatting
+through VS Code, using the current editor buffer and the document's indentation
+options. Behaviour may change as the extension develops.
 
 ---
 
@@ -28,7 +28,7 @@ Install `shfmt` using the instructions in the
 shfmt --version
 ```
 
-Install the Shellform pre-release from the
+Install Shellform from the
 [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=crisvsgame.shellform).
 
 For WSL, Remote SSH, or development containers, install both Shellform and
@@ -102,11 +102,11 @@ Configure indentation through VS Code:
 Shellform passes the buffer to `shfmt` through stdin and reads the formatted
 result from stdout. It supplies `-i` for indentation and otherwise uses the
 installed formatter's defaults. There are no Shellform-specific settings or
-free-form argument options in this Alpha.
+free-form argument options in this release.
 
 ---
 
-## 🚧 Alpha Limitations
+## 🚧 Current Limitations
 
 - Whole-document formatting only; selection/range formatting is not implemented.
 - Shellform does not yet select or enforce a shell dialect; `shfmt`'s automatic
@@ -140,6 +140,7 @@ images/
 .vscode-test.mjs
 .gitignore
 LICENSE
+CHANGELOG.md
 README.md
 package-lock.json
 package.json
