@@ -20,58 +20,71 @@ export function activate(context: vscode.ExtensionContext): void {
 
                     let stdout = "";
                     let stderr = "";
+                    let settled = false;
+
+                    const finish = (edits: vscode.TextEdit[]): void => {
+                        if (settled) {
+                            return;
+                        }
+
+                        settled = true;
+                        stdout = "";
+                        stderr = "";
+                        resolve(edits);
+                    };
+
+                    const fail = (error: unknown): void => {
+                        if (settled) {
+                            return;
+                        }
+
+                        console.error(error);
+                        finish([]);
+                    };
 
                     process.stdout.setEncoding("utf8");
                     process.stderr.setEncoding("utf8");
 
                     process.stdout.on("data", (data: string) => {
-                        stdout += data;
+                        if (!settled) {
+                            stdout += data;
+                        }
                     });
 
                     process.stderr.on("data", (data: string) => {
-                        stderr += data;
+                        if (!settled) {
+                            stderr += data;
+                        }
                     });
 
-                    process.stdin.on("error", (error) => {
-                        console.error(error);
-                        resolve([]);
-                    });
-
-                    process.stdout.on("error", (error) => {
-                        console.error(error);
-                        resolve([]);
-                    });
-
-                    process.stderr.on("error", (error) => {
-                        console.error(error);
-                        resolve([]);
-                    });
-
-                    process.on("error", (error) => {
-                        console.error(error);
-                        resolve([]);
-                    });
+                    process.stdin.on("error", fail);
+                    process.stdout.on("error", fail);
+                    process.stderr.on("error", fail);
+                    process.on("error", fail);
 
                     process.on("close", (code) => {
+                        if (settled) {
+                            return;
+                        }
+
                         if (code !== 0) {
-                            console.error(stderr);
-                            resolve([]);
+                            fail(stderr);
                             return;
                         }
 
                         if (version !== document.version) {
-                            resolve([]);
+                            finish([]);
                             return;
                         }
 
                         if (input === stdout) {
-                            resolve([]);
+                            finish([]);
                             return;
                         }
 
                         const range = new vscode.Range(document.positionAt(0), document.positionAt(input.length));
 
-                        resolve([vscode.TextEdit.replace(range, stdout)]);
+                        finish([vscode.TextEdit.replace(range, stdout)]);
                     });
 
                     process.stdin.end(input);
