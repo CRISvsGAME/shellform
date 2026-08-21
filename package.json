@@ -46,7 +46,8 @@
         "vscode:prepublish": "npm run build",
         "build": "tsc",
         "dev": "tsc --watch",
-        "test": "npm run build && vscode-test"
+        "test": "npm run build && vscode-test",
+        "test:lifecycle": "npm run build && node --test test/lifecycle.test.cjs"
     },
     "devDependencies": {
         "@types/mocha": "10.0.10",
