@@ -40,6 +40,12 @@ export function activate(context: vscode.ExtensionContext): void {
 
                         console.error(error);
                         finish([]);
+
+                        process.stdin.destroy();
+
+                        if (process.pid !== undefined && process.exitCode === null && process.signalCode === null) {
+                            process.kill("SIGTERM");
+                        }
                     };
 
                     process.stdout.setEncoding("utf8");

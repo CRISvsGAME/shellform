@@ -11,6 +11,21 @@ const source = readFileSync(filename, "utf8");
 
 function startRequest(t) {
     const child = new EventEmitter();
+    const signals = [];
+
+    child.pid = 123;
+    child.exitCode = null;
+    child.signalCode = null;
+
+    child.kill = (signal) => {
+        signals.push(signal);
+        return true;
+    };
+
+    child.on("close", (exit, signal) => {
+        child.exitCode = exit;
+        child.signalCode = signal ?? null;
+    });
 
     child.stdin = new PassThrough();
     child.stdout = new PassThrough();
@@ -107,12 +122,12 @@ function startRequest(t) {
         tabSize: 4,
     });
 
-    return { child, result, errors, edits };
+    return { child, result, errors, edits, signals };
 }
 
 for (const origin of ["stdin", "stdout", "stderr", "process"]) {
     test(`${origin} failure settles before close and ignores later events`, { timeout: 1000 }, async (t) => {
-        const { child, result, errors, edits } = startRequest(t);
+        const { child, result, errors, edits, signals } = startRequest(t);
         const failure = new Error("first failure");
 
         child.stdout.write("partial output");
@@ -122,6 +137,8 @@ for (const origin of ["stdin", "stdout", "stderr", "process"]) {
         const textEdits = await result;
 
         assert.equal(textEdits.length, 0);
+        assert.equal(child.stdin.destroyed, true);
+        assert.deepEqual(signals, ["SIGTERM"]);
 
         child.stdout.write("late output");
         child.stderr.write("late error");
@@ -135,11 +152,12 @@ for (const origin of ["stdin", "stdout", "stderr", "process"]) {
         assert.equal(textEdits.length, 0);
         assert.deepEqual(errors, [failure]);
         assert.equal(edits.length, 0);
+        assert.deepEqual(signals, ["SIGTERM"]);
     });
 }
 
 test("successful close combines utf-8 chunks and ignores later events", { timeout: 1000 }, async (t) => {
-    const { child, result, errors, edits } = startRequest(t);
+    const { child, result, errors, edits, signals } = startRequest(t);
     const expected = "drink café";
     const bytes = Buffer.from(expected);
     const split = bytes.indexOf(0xc3) + 1;
@@ -163,11 +181,12 @@ test("successful close combines utf-8 chunks and ignores later events", { timeou
     assert.equal(errors.length, 0);
     assert.equal(edits.length, 1);
     assert.equal(edits[0].newText, expected);
+    assert.deepEqual(signals, []);
 });
 
 for (const code of [1, null]) {
     test(`exit code ${code} rejects partial output and logs the error`, { timeout: 1000 }, async (t) => {
-        const { child, result, errors, edits } = startRequest(t);
+        const { child, result, errors, edits, signals } = startRequest(t);
         const errorText = "formatter failed";
 
         child.stdout.write("partial output");
@@ -180,5 +199,65 @@ for (const code of [1, null]) {
         assert.equal(textEdits.length, 0);
         assert.deepEqual(errors, [errorText]);
         assert.equal(edits.length, 0);
+        assert.deepEqual(signals, []);
     });
 }
+
+test("spawn failure closes stdin without attempting termination", { timeout: 1000 }, async (t) => {
+    const { child, result, signals } = startRequest(t);
+
+    child.pid = undefined;
+
+    child.emit("error", new Error("spawn failed"));
+
+    const textEdits = await result;
+
+    assert.equal(textEdits.length, 0);
+    assert.equal(child.stdin.destroyed, true);
+    assert.deepEqual(signals, []);
+});
+
+for (const status of [
+    { exitCode: 0, signalCode: null },
+    { exitCode: null, signalCode: "SIGTERM" },
+]) {
+    test(`stream failure after ${JSON.stringify(status)} does not terminate again`, { timeout: 1000 }, async (t) => {
+        const { child, result, signals } = startRequest(t);
+
+        child.exitCode = status.exitCode;
+        child.signalCode = status.signalCode;
+
+        child.stdout.emit("error", new Error("read failed after exit"));
+
+        const textEdits = await result;
+
+        assert.equal(textEdits.length, 0);
+        assert.equal(child.stdin.destroyed, true);
+        assert.deepEqual(signals, []);
+    });
+}
+
+test("termination error cannot re-enter cleanup or make output eligible", { timeout: 1000 }, async (t) => {
+    const { child, result, errors, edits } = startRequest(t);
+    const failure = new Error("write failed");
+
+    let attempts = 0;
+
+    child.kill = () => {
+        attempts += 1;
+        child.emit("error", new Error("termination failed"));
+        return false;
+    };
+
+    child.stdin.emit("error", failure);
+    child.stdout.write("late output");
+
+    child.emit("close", 0);
+
+    const textEdits = await result;
+
+    assert.equal(textEdits.length, 0);
+    assert.equal(attempts, 1);
+    assert.deepEqual(errors, [failure]);
+    assert.equal(edits.length, 0);
+});
