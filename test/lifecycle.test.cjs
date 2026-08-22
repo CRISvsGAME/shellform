@@ -6,8 +6,11 @@ const { PassThrough } = require("node:stream");
 const { test } = require("node:test");
 const { runInNewContext } = require("node:vm");
 
-const filename = join(__dirname, "../out/extension.js");
-const source = readFileSync(filename, "utf8");
+const extensionFilename = join(__dirname, "../out/extension.js");
+const extensionSource = readFileSync(extensionFilename, "utf8");
+
+const providerFilename = join(__dirname, "../out/format-provider.js");
+const providerSource = readFileSync(providerFilename, "utf8");
 
 function startRequest(t, cancelled = false) {
     const child = new EventEmitter();
@@ -113,7 +116,8 @@ function startRequest(t, cancelled = false) {
         TextEdit: fakeTextEdit,
     };
 
-    const exports = {};
+    const extensionExports = {};
+    const providerExports = {};
 
     const fakeSpawn = {
         spawn() {
@@ -131,6 +135,10 @@ function startRequest(t, cancelled = false) {
             return fakeSpawn;
         }
 
+        if (name === "./format-provider") {
+            return providerExports;
+        }
+
         throw new Error(`Unexpected Module: ${name}`);
     }
 
@@ -142,17 +150,22 @@ function startRequest(t, cancelled = false) {
         },
     };
 
-    const context = {
-        exports,
+    const extensionContext = {
+        exports: extensionExports,
         require: fakeRequire,
         console: fakeConsole,
     };
 
-    const options = { filename };
+    const providerContext = {
+        exports: providerExports,
+        require: fakeRequire,
+        console: fakeConsole,
+    };
 
-    runInNewContext(source, context, options);
+    runInNewContext(providerSource, providerContext, { filename: providerFilename });
+    runInNewContext(extensionSource, extensionContext, { filename: extensionFilename });
 
-    exports.activate({ subscriptions: [] });
+    extensionExports.activate({ subscriptions: [] });
 
     const document = {
         version: 1,
