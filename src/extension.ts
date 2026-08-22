@@ -10,7 +10,12 @@ export function activate(context: vscode.ExtensionContext): void {
             provideDocumentFormattingEdits(
                 document: vscode.TextDocument,
                 options: vscode.FormattingOptions,
+                token: vscode.CancellationToken,
             ): Promise<vscode.TextEdit[]> {
+                if (token.isCancellationRequested) {
+                    return Promise.resolve([]);
+                }
+
                 const indent = options.insertSpaces ? options.tabSize : 0;
 
                 return new Promise((resolve) => {
@@ -21,6 +26,7 @@ export function activate(context: vscode.ExtensionContext): void {
                     let stdout = "";
                     let stderr = "";
                     let settled = false;
+                    let cancellation: vscode.Disposable | undefined;
 
                     const finish = (edits: vscode.TextEdit[]): void => {
                         if (settled) {
@@ -28,9 +34,18 @@ export function activate(context: vscode.ExtensionContext): void {
                         }
 
                         settled = true;
+                        cancellation?.dispose();
                         stdout = "";
                         stderr = "";
                         resolve(edits);
+                    };
+
+                    const cleanup = (): void => {
+                        process.stdin.destroy();
+
+                        if (process.pid !== undefined && process.exitCode === null && process.signalCode === null) {
+                            process.kill("SIGTERM");
+                        }
                     };
 
                     const fail = (error: unknown): void => {
@@ -40,12 +55,16 @@ export function activate(context: vscode.ExtensionContext): void {
 
                         console.error(error);
                         finish([]);
+                        cleanup();
+                    };
 
-                        process.stdin.destroy();
-
-                        if (process.pid !== undefined && process.exitCode === null && process.signalCode === null) {
-                            process.kill("SIGTERM");
+                    const cancel = (): void => {
+                        if (settled) {
+                            return;
                         }
+
+                        finish([]);
+                        cleanup();
                     };
 
                     process.stdout.setEncoding("utf8");
@@ -73,6 +92,11 @@ export function activate(context: vscode.ExtensionContext): void {
                             return;
                         }
 
+                        if (token.isCancellationRequested) {
+                            cancel();
+                            return;
+                        }
+
                         if (code !== 0) {
                             fail(stderr);
                             return;
@@ -93,7 +117,13 @@ export function activate(context: vscode.ExtensionContext): void {
                         finish([vscode.TextEdit.replace(range, stdout)]);
                     });
 
-                    process.stdin.end(input);
+                    cancellation = token.onCancellationRequested(cancel);
+
+                    if (token.isCancellationRequested) {
+                        cancel();
+                    } else {
+                        process.stdin.end(input);
+                    }
                 });
             },
         },

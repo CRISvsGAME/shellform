@@ -9,7 +9,7 @@ const { runInNewContext } = require("node:vm");
 const filename = join(__dirname, "../out/extension.js");
 const source = readFileSync(filename, "utf8");
 
-function startRequest(t) {
+function startRequest(t, cancelled = false) {
     const child = new EventEmitter();
     const signals = [];
 
@@ -37,10 +37,46 @@ function startRequest(t) {
         child.stderr.destroy();
     });
 
+    const cancellation = new EventEmitter();
+
+    let isCancellationRequested = cancelled;
+
+    function disposeCancellationListener(listener) {
+        cancellation.off("cancel", listener);
+    }
+
+    function onCancellationRequested(listener) {
+        cancellation.on("cancel", listener);
+
+        return {
+            dispose() {
+                disposeCancellationListener(listener);
+            },
+        };
+    }
+
+    const token = {
+        get isCancellationRequested() {
+            return isCancellationRequested;
+        },
+
+        set isCancellationRequested(value) {
+            isCancellationRequested = value;
+        },
+
+        onCancellationRequested,
+    };
+
+    function cancel() {
+        token.isCancellationRequested = true;
+        cancellation.emit("cancel");
+    }
+
     let shellform;
 
     const edits = [];
     const errors = [];
+    const spawns = [];
 
     const fakeTextEdit = {
         replace(range, newText) {
@@ -79,13 +115,20 @@ function startRequest(t) {
 
     const exports = {};
 
+    const fakeSpawn = {
+        spawn() {
+            spawns.push(child);
+            return child;
+        },
+    };
+
     function fakeRequire(name) {
         if (name === "vscode") {
             return vscode;
         }
 
         if (name === "node:child_process") {
-            return { spawn: () => child };
+            return fakeSpawn;
         }
 
         throw new Error(`Unexpected Module: ${name}`);
@@ -117,12 +160,16 @@ function startRequest(t) {
         positionAt: (offset) => offset,
     };
 
-    const result = shellform.provideDocumentFormattingEdits(document, {
-        insertSpaces: true,
-        tabSize: 4,
-    });
+    const result = shellform.provideDocumentFormattingEdits(
+        document,
+        {
+            insertSpaces: true,
+            tabSize: 4,
+        },
+        token,
+    );
 
-    return { child, result, errors, edits, signals };
+    return { child, result, errors, edits, signals, spawns, cancellation, document, token, cancel };
 }
 
 for (const origin of ["stdin", "stdout", "stderr", "process"]) {
@@ -261,3 +308,92 @@ test("termination error cannot re-enter cleanup or make output eligible", { time
     assert.deepEqual(errors, [failure]);
     assert.equal(edits.length, 0);
 });
+
+test("pre-cancelled request does not spawn child process", { timeout: 1000 }, async (t) => {
+    const { result, errors, edits, spawns, cancellation } = startRequest(t, true);
+    const textEdits = await result;
+
+    assert.equal(textEdits.length, 0);
+    assert.equal(errors.length, 0);
+    assert.equal(edits.length, 0);
+    assert.equal(spawns.length, 0);
+    assert.equal(cancellation.listenerCount("cancel"), 0);
+});
+
+test("cancellation settles before close and permanently rejects late output", { timeout: 1000 }, async (t) => {
+    const { child, result, errors, edits, signals, cancellation, cancel } = startRequest(t);
+
+    assert.equal(cancellation.listenerCount("cancel"), 1);
+
+    child.stdout.write("partial output");
+
+    cancel();
+
+    const textEdits = await result;
+
+    assert.equal(textEdits.length, 0);
+    assert.equal(child.stdin.destroyed, true);
+    assert.deepEqual(signals, ["SIGTERM"]);
+    assert.equal(cancellation.listenerCount("cancel"), 0);
+
+    cancel();
+
+    child.stdout.write("late output");
+    child.stderr.write("late error");
+
+    for (const emitter of [child.stdin, child.stdout, child.stderr, child]) {
+        emitter.emit("error", new Error("late failure"));
+    }
+
+    child.emit("close", 0);
+
+    assert.equal(errors.length, 0);
+    assert.equal(edits.length, 0);
+    assert.deepEqual(signals, ["SIGTERM"]);
+});
+
+test("cancelled token rejects output before the cancellation event arrives", { timeout: 1000 }, async (t) => {
+    const { child, result, errors, edits, cancellation, token } = startRequest(t);
+
+    child.stdout.write("formatted output");
+
+    token.isCancellationRequested = true;
+
+    child.emit("close", 0);
+
+    const textEdits = await result;
+
+    assert.equal(textEdits.length, 0);
+    assert.equal(errors.length, 0);
+    assert.equal(edits.length, 0);
+    assert.equal(cancellation.listenerCount("cancel"), 0);
+});
+
+for (const outcome of ["succeeded", "unchanged", "stale", "error", "failed"]) {
+    test(`${outcome} completion disposes the cancellation listener`, { timeout: 1000 }, async (t) => {
+        const { child, result, signals, cancellation, document, cancel } = startRequest(t);
+
+        assert.equal(cancellation.listenerCount("cancel"), 1);
+
+        child.stdout.write(outcome === "unchanged" ? "input text" : "formatted output");
+
+        if (outcome === "stale") {
+            document.version += 1;
+        }
+
+        if (outcome === "error") {
+            child.emit("error", new Error("failed"));
+        } else {
+            child.emit("close", outcome === "failed" ? 1 : 0);
+        }
+
+        await result;
+
+        const attempts = signals.length;
+
+        cancel();
+
+        assert.equal(signals.length, attempts);
+        assert.equal(cancellation.listenerCount("cancel"), 0);
+    });
+}
