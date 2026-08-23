@@ -12,6 +12,9 @@ const extensionSource = readFileSync(extensionFilename, "utf8");
 const providerFilename = join(__dirname, "../out/format-provider.js");
 const providerSource = readFileSync(providerFilename, "utf8");
 
+const requestFilename = join(__dirname, "../out/format-request.js");
+const requestSource = readFileSync(requestFilename, "utf8");
+
 function startRequest(t, cancelled = false) {
     const child = new EventEmitter();
     const signals = [];
@@ -118,6 +121,7 @@ function startRequest(t, cancelled = false) {
 
     const extensionExports = {};
     const providerExports = {};
+    const requestExports = {};
 
     const fakeSpawn = {
         spawn() {
@@ -137,6 +141,10 @@ function startRequest(t, cancelled = false) {
 
         if (name === "./format-provider") {
             return providerExports;
+        }
+
+        if (name === "./format-request") {
+            return requestExports;
         }
 
         throw new Error(`Unexpected Module: ${name}`);
@@ -162,6 +170,13 @@ function startRequest(t, cancelled = false) {
         console: fakeConsole,
     };
 
+    const requestContext = {
+        exports: requestExports,
+        require: fakeRequire,
+        console: fakeConsole,
+    };
+
+    runInNewContext(requestSource, requestContext, { filename: requestFilename });
     runInNewContext(providerSource, providerContext, { filename: providerFilename });
     runInNewContext(extensionSource, extensionContext, { filename: extensionFilename });
 

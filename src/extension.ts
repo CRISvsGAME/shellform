@@ -4,12 +4,12 @@ import { ShellformFormatProvider } from "./format-provider";
 export function activate(context: vscode.ExtensionContext): void {
     console.log("Shellform Extension Activated");
 
-    const formatter = vscode.languages.registerDocumentFormattingEditProvider(
+    const formatProvider = vscode.languages.registerDocumentFormattingEditProvider(
         { language: "shellscript" },
         new ShellformFormatProvider(),
     );
 
-    context.subscriptions.push(formatter);
+    context.subscriptions.push(formatProvider);
 }
 
 export function deactivate(): void {}
