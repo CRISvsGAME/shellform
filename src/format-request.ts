@@ -2,20 +2,22 @@ import { spawn } from "node:child_process";
 import * as vscode from "vscode";
 
 export class ShellformFormatRequest {
-    run(
-        document: vscode.TextDocument,
-        options: vscode.FormattingOptions,
-        token: vscode.CancellationToken,
-    ): Promise<vscode.TextEdit[]> {
-        if (token.isCancellationRequested) {
+    constructor(
+        private readonly document: vscode.TextDocument,
+        private readonly options: vscode.FormattingOptions,
+        private readonly token: vscode.CancellationToken,
+    ) {}
+
+    run(): Promise<vscode.TextEdit[]> {
+        if (this.token.isCancellationRequested) {
             return Promise.resolve([]);
         }
 
-        const indent = options.insertSpaces ? options.tabSize : 0;
+        const indent = this.options.insertSpaces ? this.options.tabSize : 0;
 
         return new Promise((resolve) => {
-            const version = document.version;
-            const input = document.getText();
+            const version = this.document.version;
+            const input = this.document.getText();
             const process = spawn("shfmt", ["-i", indent.toString()]);
 
             let stdout = "";
@@ -87,7 +89,7 @@ export class ShellformFormatRequest {
                     return;
                 }
 
-                if (token.isCancellationRequested) {
+                if (this.token.isCancellationRequested) {
                     cancel();
                     return;
                 }
@@ -97,7 +99,7 @@ export class ShellformFormatRequest {
                     return;
                 }
 
-                if (version !== document.version) {
+                if (version !== this.document.version) {
                     finish([]);
                     return;
                 }
@@ -107,14 +109,14 @@ export class ShellformFormatRequest {
                     return;
                 }
 
-                const range = new vscode.Range(document.positionAt(0), document.positionAt(input.length));
+                const range = new vscode.Range(this.document.positionAt(0), this.document.positionAt(input.length));
 
                 finish([vscode.TextEdit.replace(range, stdout)]);
             });
 
-            cancellation = token.onCancellationRequested(cancel);
+            cancellation = this.token.onCancellationRequested(cancel);
 
-            if (token.isCancellationRequested) {
+            if (this.token.isCancellationRequested) {
                 cancel();
             } else {
                 process.stdin.end(input);

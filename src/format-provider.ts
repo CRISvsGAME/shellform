@@ -7,8 +7,8 @@ export class ShellformFormatProvider implements vscode.DocumentFormattingEditPro
         options: vscode.FormattingOptions,
         token: vscode.CancellationToken,
     ): Promise<vscode.TextEdit[]> {
-        const formatrequest = new ShellformFormatRequest();
+        const formatrequest = new ShellformFormatRequest(document, options, token);
 
-        return formatrequest.run(document, options, token);
+        return formatrequest.run();
     }
 }
