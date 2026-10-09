@@ -7,9 +7,9 @@
 Shellform is a lightweight Visual Studio Code extension for formatting shell
 scripts using [shfmt](https://github.com/mvdan/sh).
 
-**0.2.0** is the first regular release. It provides whole-document formatting
-through VS Code, using the current editor buffer and the document's indentation
-options. Behaviour may change as the extension develops.
+**0.3.0** adds formatting cancellation and formatter-process cleanup. It provides
+whole-document formatting through VS Code, using the current editor buffer and
+the document's indentation options. Behaviour may change as the extension develops.
 
 ---
 
@@ -79,6 +79,8 @@ to your VS Code settings:
 - Eligibility based on Shell Script language mode, with no filename-extension requirement.
 - Tabs or spaces and indentation width taken from VS Code's formatting options.
 - No edits for unchanged formatter output.
+- No edits for cancelled formatting requests.
+- Formatter input cleanup and active-process termination requests on cancellation or failure.
 - No edits after process or stream failure, unsuccessful exit, or a document-version change.
 - Formatted edits applied by VS Code; Shellform does not write the source file directly.
 - Script contents passed to `shfmt` as data, never executed.
@@ -113,14 +115,13 @@ free-form argument options in this release.
   dialect detection and fallback behaviour apply.
 - Shellform does not provide EditorConfig integration. Its explicit indentation
   flag disables `shfmt`'s EditorConfig formatting options.
-- Cancellation, timeouts, request supersession, and active-process cleanup on
+- Timeouts, automatic request supersession, and active-process cleanup on
   extension deactivation are not yet implemented. A stalled formatter can leave
-  a request pending.
+  a request pending unless the request is cancelled.
 - Failures are logged to the extension host console; there are no user-facing
   error notifications or executable-path settings yet.
-- Development has been exercised in WSL Ubuntu. The four integration tests pass
-  in Linux extension hosts for VS Code 1.101.0 and 1.136.1 with `shfmt` 3.12.0.
-  Windows, macOS, and other remote environments have not been validated.
+- Development has been exercised in WSL Ubuntu. Windows, macOS, and other
+  remote environments have not been validated.
 
 ---
 
@@ -129,8 +130,12 @@ free-form argument options in this release.
 ```text
 src/
     extension.ts
+    format-provider.ts
+    format-request.ts
     test/
         extension.test.ts
+test/
+    lifecycle.test.cjs
 images/
     icon.png
     icon.svg
@@ -152,19 +157,27 @@ out/ # generated JavaScript and source maps
 
 ## 🧪 Testing
 
-Install development dependencies and run the integration tests:
+Install development dependencies and run the tests:
 
 ```bash
 npm ci
 npm test
+npm run test:lifecycle
 ```
 
-The test command compiles the extension and runs tests in a downloaded VS Code
-Extension Development Host. It requires `shfmt` on `PATH` and a graphical
+The lifecycle command compiles the extension and runs 20 tests with mocked
+processes and VS Code objects. They cover cancellation, cleanup, late events,
+stale and unchanged results, and overlapping requests. No running VS Code host
+or installed `shfmt` is needed for this suite.
+
+The integration command compiles the extension and runs tests in a downloaded
+VS Code Extension Development Host. It requires `shfmt` on `PATH` and a graphical
 environment capable of running VS Code.
 
-The current configuration targets stable VS Code. The four tests cover spaces,
-tabs, unchanged input, and invalid shell syntax through VS Code's formatting API.
+The current configuration targets stable VS Code. Four integration tests cover
+spaces, tabs, unchanged input, and invalid shell syntax through VS Code's
+formatting API. A fifth checks that VS Code cancels a pending formatting token
+when the document changes during the normal Format Document action.
 
 After building, run against the minimum supported VS Code version:
 

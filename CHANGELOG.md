@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 - 2026-10-09
+
+### Added
+
+- Support for VS Code formatting cancellation tokens, including requests cancelled before formatting starts.
+- Formatter-process and stream cleanup on cancellation or failure.
+- Lifecycle tests for cancellation, cleanup, stale and unchanged results, and overlapping requests.
+- Integration test for VS Code cancelling formatting when the document changes.
+
 ## 0.2.0 - 2026-08-20
 
 ### Changed

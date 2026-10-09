@@ -2,7 +2,7 @@
     "name": "shellform",
     "displayName": "Shellform",
     "icon": "images/icon.png",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "publisher": "crisvsgame",
     "description": "Format shell scripts using shfmt.",
     "categories": [
@@ -31,6 +31,8 @@
     "main": "./out/extension.js",
     "files": [
         "out/extension.js",
+        "out/format-provider.js",
+        "out/format-request.js",
         "images/icon.png",
         "README.md",
         "CHANGELOG.md",
